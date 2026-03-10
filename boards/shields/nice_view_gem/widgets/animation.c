@@ -44,7 +44,6 @@ static void animation_ready_cb(lv_event_t *event) {
 
     if (reverse_replay_pending) {
         reverse_replay_pending = false;
-        lv_animimg_stop(anim_obj);
         lv_animimg_set_src(anim_obj, (const void **)anim_imgs_reverse, 16);
         lv_animimg_set_repeat_count(anim_obj, 0);
         lv_animimg_start(anim_obj);
@@ -52,7 +51,6 @@ static void animation_ready_cb(lv_event_t *event) {
     }
 
     reverse_playing = false;
-    lv_animimg_stop(anim_obj);
     lv_animimg_set_src(anim_obj, (const void **)anim_imgs, 16);
     lv_animimg_set_repeat_count(anim_obj, LV_ANIM_REPEAT_INFINITE);
     lv_animimg_start(anim_obj);
@@ -74,7 +72,6 @@ void trigger_animation_reverse_once(void) {
 
     reverse_playing = true;
     reverse_replay_pending = false;
-    lv_animimg_stop(anim_obj);
     lv_animimg_set_src(anim_obj, (const void **)anim_imgs_reverse, 16);
     lv_animimg_set_repeat_count(anim_obj, 0);
     lv_animimg_start(anim_obj);
