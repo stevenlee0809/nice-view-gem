@@ -5,6 +5,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
+#include <zmk/events/position_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/split/bluetooth/peripheral.h>
 #include <zmk/events/split_peripheral_status_changed.h>
@@ -100,6 +101,37 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_peripheral_status, struct peripheral_status_s
 ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_peripheral_status_changed);
 
 /**
+ * Animation direction
+ **/
+
+struct animation_direction_state {
+    bool changed;
+    bool pressed;
+};
+
+static struct animation_direction_state animation_direction_get_state(const zmk_event_t *eh) {
+    const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
+
+    if (ev == NULL) {
+        return (struct animation_direction_state){.changed = false, .pressed = false};
+    }
+
+    return (struct animation_direction_state){.changed = true, .pressed = ev->state};
+}
+
+static void animation_direction_update_cb(struct animation_direction_state state) {
+    if (!state.changed || !state.pressed) {
+        return;
+    }
+
+    trigger_animation_reverse_once();
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_animation_direction, struct animation_direction_state,
+                            animation_direction_update_cb, animation_direction_get_state)
+ZMK_SUBSCRIPTION(widget_animation_direction, zmk_position_state_changed);
+
+/**
  * Initialization
  **/
 
@@ -116,6 +148,7 @@ int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
     sys_slist_append(&widgets, &widget->node);
     widget_battery_status_init();
     widget_peripheral_status_init();
+    widget_animation_direction_init();
 
     return 0;
 }
