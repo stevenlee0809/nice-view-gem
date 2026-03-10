@@ -34,10 +34,11 @@ const lv_img_dsc_t *anim_imgs_reverse[] = {
 static lv_obj_t *anim_obj;
 static bool reverse_playing;
 static bool reverse_replay_pending;
+static lv_timer_t *reverse_timer;
 
-static void animation_ready_cb(lv_event_t *event) {
+static void reverse_timer_cb(lv_timer_t *timer) {
 #if IS_ENABLED(CONFIG_NICE_VIEW_GEM_ANIMATION)
-    ARG_UNUSED(event) ;
+    ARG_UNUSED(timer);
     if (!reverse_playing || anim_obj == NULL) {
         return;
     }
@@ -55,7 +56,7 @@ static void animation_ready_cb(lv_event_t *event) {
     lv_animimg_set_repeat_count(anim_obj, LV_ANIM_REPEAT_INFINITE);
     lv_animimg_start(anim_obj);
 #else
-    ARG_UNUSED(event);
+    ARG_UNUSED(timer);
 #endif
 }
 
@@ -86,10 +87,12 @@ void draw_animation(lv_obj_t *canvas) {
     anim_obj = art;
     reverse_playing = false;
     reverse_replay_pending = false;
+    if (reverse_timer == NULL) {
+        reverse_timer = lv_timer_create(reverse_timer_cb, CONFIG_NICE_VIEW_GEM_ANIMATION_MS, NULL);
+    }
     lv_animimg_set_src(art, (const void **)anim_imgs, 16);
     lv_animimg_set_duration(art, CONFIG_NICE_VIEW_GEM_ANIMATION_MS);
     lv_animimg_set_repeat_count(art, LV_ANIM_REPEAT_INFINITE);
-    lv_obj_add_event_cb(art, animation_ready_cb, LV_EVENT_READY, NULL);
     lv_animimg_start(art);
 #else
     lv_obj_t *art = lv_img_create(canvas);
