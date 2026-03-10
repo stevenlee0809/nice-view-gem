@@ -5,6 +5,7 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
+#include <zmk/events/position_state_changed.h>
 #include <zmk/events/usb_conn_state_changed.h>
 #include <zmk/split/bluetooth/peripheral.h>
 #include <zmk/events/split_peripheral_status_changed.h>
@@ -19,12 +20,13 @@ LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 #include "screen_peripheral.h"
 
 static sys_slist_t widgets = SYS_SLIST_STATIC_INIT(&widgets);
+static uint8_t pressed_key_count;
 
 /**
  * Draw buffers
  **/
 
-static void draw_top(lv_obj_t *widget, lv_color_t cbuf[], const struct status_state *state) {
+static void draw_top(lv_obj_t *widget, const struct status_state *state) {
     lv_obj_t *canvas = lv_obj_get_child(widget, 0);
     fill_background(canvas);
 
@@ -33,7 +35,7 @@ static void draw_top(lv_obj_t *widget, lv_color_t cbuf[], const struct status_st
     draw_battery_status(canvas, state);
 
     // Rotate for horizontal display
-    rotate_canvas(canvas, cbuf);
+    rotate_canvas(canvas);
 }
 
 /**
@@ -48,7 +50,7 @@ static void set_battery_status(struct zmk_widget_screen *widget,
 
     widget->state.battery = state.level;
 
-    draw_top(widget->obj, widget->cbuf, &widget->state);
+    draw_top(widget->obj, &widget->state);
 }
 
 static void battery_status_update_cb(struct battery_status_state state) {
@@ -87,7 +89,7 @@ static void set_connection_status(struct zmk_widget_screen *widget,
                                   struct peripheral_status_state state) {
     widget->state.connected = state.connected;
 
-    draw_top(widget->obj, widget->cbuf, &widget->state);
+    draw_top(widget->obj, &widget->state);
 }
 
 static void output_status_update_cb(struct peripheral_status_state state) {
@@ -100,22 +102,56 @@ ZMK_DISPLAY_WIDGET_LISTENER(widget_peripheral_status, struct peripheral_status_s
 ZMK_SUBSCRIPTION(widget_peripheral_status, zmk_split_peripheral_status_changed);
 
 /**
+ * Local key state
+ **/
+
+struct key_state {
+    bool pressed;
+};
+
+static void key_state_update_cb(struct key_state state) {
+    if (state.pressed) {
+        if (pressed_key_count < 255) {
+            pressed_key_count++;
+        }
+    } else {
+        if (pressed_key_count > 0) {
+            pressed_key_count--;
+        }
+    }
+
+    set_animation_reverse(pressed_key_count > 0);
+}
+
+static struct key_state key_state_get_state(const zmk_event_t *eh) {
+    const struct zmk_position_state_changed *ev = as_zmk_position_state_changed(eh);
+    return (struct key_state){.pressed = (ev != NULL) ? ev->state : false};
+}
+
+ZMK_DISPLAY_WIDGET_LISTENER(widget_key_state, struct key_state, key_state_update_cb,
+                            key_state_get_state)
+ZMK_SUBSCRIPTION(widget_key_state, zmk_position_state_changed);
+
+/**
  * Initialization
  **/
 
 int zmk_widget_screen_init(struct zmk_widget_screen *widget, lv_obj_t *parent) {
     widget->obj = lv_obj_create(parent);
     lv_obj_set_size(widget->obj, SCREEN_HEIGHT, SCREEN_WIDTH);
+    lv_obj_set_style_bg_color(widget->obj, LVGL_BACKGROUND, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(widget->obj, LV_OPA_COVER, LV_PART_MAIN);
 
     lv_obj_t *top = lv_canvas_create(widget->obj);
     lv_obj_align(top, LV_ALIGN_TOP_RIGHT, 0, 0);
-    lv_canvas_set_buffer(top, widget->cbuf, BUFFER_SIZE, BUFFER_SIZE, LV_IMG_CF_TRUE_COLOR);
+    lv_canvas_set_buffer(top, widget->cbuf, CANVAS_SIZE, CANVAS_SIZE, CANVAS_COLOR_FORMAT);
 
     draw_animation(widget->obj);
 
     sys_slist_append(&widgets, &widget->node);
     widget_battery_status_init();
     widget_peripheral_status_init();
+    widget_key_state_init();
 
     return 0;
 }
